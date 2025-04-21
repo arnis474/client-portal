@@ -1,251 +1,330 @@
-'use client'
+'use client'; // Needed for useState hook
+
+import { Fragment, ReactNode, useState, useEffect } from 'react';
+import { Dialog, Transition } from '@headlessui/react';
+import Link from 'next/link'; // Assuming Next.js
 import {
-  CalendarIcon,
-  ClockIcon,
-  DocumentIcon,
-  ChartBarIcon,
-  QueueListIcon,
-  PlusIcon,
-  UsersIcon,
-  StarIcon, // Added
-  ChatBubbleBottomCenterIcon, // Added
-  XMarkIcon // Added for mobile close button clarity
-} from '@heroicons/react/24/outline'
-import { ReactNode, useState } from 'react'
+  ClockIcon,            // Dashboard
+  UsersIcon,            // Clients, All Clients
+  QueueListIcon,        // Projects, All Projects
+  CalendarIcon,         // Calendar
+  DocumentIcon,         // Documents
+  ChartBarIcon,         // Reports
+  ChatBubbleLeftRightIcon, // Team Chat, Shared Notes/Ideas (using this for consistency)
+  Cog6ToothIcon,        // Settings
+  UserCircleIcon,       // My Account
+  ArrowLeftOnRectangleIcon, // Logout
+  ListBulletIcon,       // All Tasks
+  BookOpenIcon,         // Internal Docs, SOPs/Training
+  LinkIcon,             // Tools & Links
+  KeyIcon,              // Password Vault
+  PhotoIcon,            // Brand Assets
+  DocumentDuplicateIcon,// Proposal Templates
+  ScaleIcon,            // Legal / Contracts
+  TrophyIcon,           // Team Goals (Optional)
+  XMarkIcon,            // Mobile close
+  Bars3Icon,            // Mobile open / Hamburger
+  ChevronDoubleLeftIcon, // Collapse icon
+  ChevronDoubleRightIcon // Expand icon
+} from '@heroicons/react/24/outline';
+// --- If using Next.js App Router, uncomment the line below ---
+// import { usePathname } from 'next/navigation';
 
-// Optional: Define navigation structure for easier mapping, though not strictly necessary for this static example
-const workspaceNavigation = [
-  { name: 'Dashboard', href: '/dashboard/admin', icon: ClockIcon, current: false },
-  { name: 'Clients', href: '/dashboard/admin/clients', icon: UsersIcon, current: false },
-  { name: 'Projects', href: '/dashboard/admin/projects', icon: QueueListIcon, current: false },
-  { name: 'Calendar', href: '/dashboard/admin/calendar', icon: CalendarIcon, current: false },
-  { name: 'Documents', href: '/dashboard/admin/files', icon: DocumentIcon, current: false },
-  { name: 'Reports', href: '/dashboard/admin/reports', icon: ChartBarIcon, current: false },
-]
-const quickAccessNavigation = [
-  { name: 'Priority Tasks', href: '/dashboard/admin/tasks', icon: StarIcon, current: false }, // Not yet implemented
-  { name: 'Recent Files', href: '/dashboard/admin/recentfiles', icon: ClockIcon, current: false },
-  { name: 'Team Chat', href: '/dashboard/admin/chat', icon: ChatBubbleBottomCenterIcon, current: false }, // Not yet implemented
-]
-
-function classNames(...classes: string[]) {
-  return classes.filter(Boolean).join(' ')
+// --- Navigation Structure ---
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ForwardRefExoticComponent<Omit<React.SVGProps<SVGSVGElement>, "ref"> & { title?: string | undefined; titleId?: string | undefined; } & React.RefAttributes<SVGSVGElement>>;
 }
 
+// Renamed from workspaceNavigation to essentialsNavigation
+const essentialsNavigation: NavItem[] = [
+  { name: 'Dashboard', href: '/dashboard/admin', icon: ClockIcon },
+  { name: 'Clients', href: '/dashboard/admin/clients', icon: UsersIcon },
+  { name: 'Projects', href: '/dashboard/admin/projects', icon: QueueListIcon },
+  { name: 'Calendar', href: '/dashboard/admin/calendar', icon: CalendarIcon },
+  { name: 'Documents', href: '/dashboard/admin/files', icon: DocumentIcon },
+  { name: 'Reports', href: '/dashboard/admin/reports', icon: ChartBarIcon },
+  { name: 'Team Chat', href: '/dashboard/admin/chat', icon: ChatBubbleLeftRightIcon }, // Moved here
+];
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false) // Default to closed on mobile
+// NEW: Team Space Navigation
+const teamSpaceNavigation: NavItem[] = [
+  { name: 'All Clients', href: '/dashboard/admin/all-clients', icon: UsersIcon }, // Link might be same as essentials or a different view
+  { name: 'All Projects', href: '/dashboard/admin/all-projects', icon: QueueListIcon },
+  { name: 'All Tasks', href: '/dashboard/admin/all-tasks', icon: ListBulletIcon },
+  { name: 'Shared Notes / Ideas', href: '/dashboard/admin/notes', icon: ChatBubbleLeftRightIcon }, // Reusing chat icon, consider LightBulbIcon if available/preferred
+  // { name: 'Team Goals', href: '/dashboard/admin/goals', icon: TrophyIcon }, // Optional
+];
 
+// NEW: Resources Navigation
+const resourcesNavigation: NavItem[] = [
+  { name: 'Internal Docs', href: '/dashboard/admin/internal-docs', icon: BookOpenIcon },
+  { name: 'Tools & Links', href: '/dashboard/admin/tools', icon: LinkIcon },
+  { name: 'SOPs / Training', href: '/dashboard/admin/sops', icon: BookOpenIcon }, // Reusing BookOpenIcon
+  { name: 'Password Vault', href: '/dashboard/admin/passwords', icon: KeyIcon },
+  { name: 'Brand Assets', href: '/dashboard/admin/assets', icon: PhotoIcon },
+  // { name: 'Proposal Templates', href: '/dashboard/admin/templates', icon: DocumentDuplicateIcon }, // Optional
+  { name: 'Legal / Contracts', href: '/dashboard/admin/legal', icon: ScaleIcon },
+];
+
+// Kept separate for clarity
+const settingsNavigation: NavItem[] = [
+   { name: 'Settings', href: '/dashboard/admin/settings', icon: Cog6ToothIcon },
+];
+
+const profileNavigation: NavItem[] = [
+   { name: 'My Account', href: '/dashboard/admin/profile', icon: UserCircleIcon },
+];
+
+function classNames(...classes: string[]) {
+  return classes.filter(Boolean).join(' ');
+}
+
+const customScrollbarStyle = `
+  .custom-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #4a5568; /* Example dark theme thumb color */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background-color: #1a202c; /* Example dark theme track color */
+  }
+  .dark .custom-scrollbar::-webkit-scrollbar-track {
+  }
+  .custom-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+`;
+
+const NavItemIcon = ({ Icon, current }: { Icon: React.ForwardRefExoticComponent<Omit<React.SVGProps<SVGSVGElement>, 'ref'> & { title?: string | undefined; titleId?: string | undefined; } & React.RefAttributes<SVGSVGElement>>; current: boolean; }) => {
   return (
-    <div className="flex min-h-screen">
-      {/* Mobile sidebar */}
-      {/* NOTE: Mobile sidebar styling hasn't been changed to match the new items */}
-      <div className={`relative z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`} role="dialog" aria-modal="true">
-        {/* Off-canvas menu backdrop */}
-        <div className="fixed inset-0 bg-gray-900/80" onClick={() => setSidebarOpen(false)}></div>
+    <Icon
+      className={classNames(
+        current ? 'text-white' : 'text-gray-400 group-hover:text-white',
+        'h-6 w-6 shrink-0 transition-colors duration-150 ease-in-out'
+      )}
+      aria-hidden="true" />
+  );
+};
+// --- Main Layout Component ---
+export default function DashboardLayoutV3Final({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = customScrollbarStyle;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
-        <div className="fixed inset-0 flex">
-          {/* Off-canvas menu */}
-          <div className="relative mr-16 flex w-full max-w-xs flex-1">
-             {/* Close button */}
-             <div className="absolute left-full top-0 flex w-16 justify-center pt-5">
-               <button type="button" className="-m-2.5 p-2.5" onClick={() => setSidebarOpen(false)}>
-                 <span className="sr-only">Close sidebar</span>
-                 <XMarkIcon className="h-6 w-6 text-white" aria-hidden="true" />
-               </button>
-             </div>
 
-            {/* Sidebar component */}
-            <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-black px-6 pb-4 ring-1 ring-white/10">
-              <div className="flex h-16 shrink-0 items-center">
-                {/* Optional Mobile Logo */}
-                {/* <img
-                  className="h-8 w-auto"
-                  src="https://tailwindui.com/img/logos/mark.svg?color=indigo&shade=500"
-                  alt="Your Company"
-                /> */}
-              </div>
-              <nav className="flex flex-1 flex-col">
-                <ul role="list" className="flex flex-1 flex-col gap-y-7">
-                  <li>
-                    {/* Mobile New Client Button - Styling might differ */}
-                    <button className="text-white w-full rounded-md bg-red-600 px-3 py-2 text-sm font-semibold flex items-center justify-center gap-x-2 shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600">
-                      <PlusIcon className="h-5 w-5" aria-hidden="true" />
-                      New Client
-                    </button>
-                  </li>
-                  <li>
-                    <div className="text-xs font-semibold leading-6 text-gray-400">Workspace</div>
-                    <ul role="list" className="-mx-2 mt-2 space-y-1">
-                      {workspaceNavigation.map((item) => (
-                        <li key={item.name}>
-                          <a
-                            href={item.href}
-                            className={classNames(
-                              item.current
-                                ? 'bg-gray-800 text-white'
-                                : 'text-gray-400 hover:text-white hover:bg-gray-800',
-                              'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
-                            )}
-                          >
-                            <item.icon className="h-6 w-6 shrink-0" aria-hidden="true" />
-                            {item.name}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                  {/* Mobile Quick Access Section */}
-                  <li>
-                    <div className="text-xs font-semibold leading-6 text-gray-400">Quick Access</div>
-                     <ul role="list" className="-mx-2 mt-2 space-y-1">
-                       {quickAccessNavigation.map((item) => (
-                         <li key={item.name}>
-                           <a
-                             href={item.href}
-                             className={classNames(
-                               item.current
-                                 ? 'bg-gray-800 text-white'
-                                 : 'text-gray-400 hover:text-white hover:bg-gray-800',
-                               'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
-                             )}
-                           >
-                             {/* Adjust icon color based on hover/current state if needed */}
-                             <item.icon
-                               className={classNames(
-                                item.current ? 'text-white' : 'text-gray-400 group-hover:text-white',
-                                'h-6 w-6 shrink-0'
-                               )}
-                               aria-hidden="true"
-                              />
-                             {item.name}
-                           </a>
-                         </li>
-                       ))}
-                     </ul>
-                  </li>
-                </ul>
-              </nav>
-            </div>
-          </div>
-        </div>
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // --- Dynamic Active State Logic ---
+  // const pathname = usePathname(); // Uncomment if using Next.js App Router
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : ''; // Basic fallback
+
+  const checkCurrent = (href: string): boolean => {
+    // Basic check, adjust as needed
+    return pathname === href || (href !== '/dashboard/admin' && pathname.startsWith(href));
+  };
+
+  // --- Logout Handler ---
+  const handleLogout = () => {
+     console.log("Logout triggered");
+     // Implement logout logic
+  };
+
+  // --- Sidebar Content Component ---
+  const SidebarContent = ({ isMobile = false }: { isMobile?: boolean }) => (
+    <>
+      {/* Collapse button - Always rendered, hidden on mobile */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="lg:block hidden items-center justify-center w-full mt-3 rounded-none text-gray-300 hover:bg-gray-600 hover:text-white transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-gray-500 py-2"
+        title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+      >
+        <span className="sr-only">{isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}</span>
+        {isCollapsed ? ( <ChevronDoubleRightIcon className="h-4 w-4" /> ) : ( <ChevronDoubleLeftIcon className="h-4 w-4" /> )}
+      </button>
+
+      {/* Logo Area */}
+
+      <div className={`flex h-16 shrink-0 items-center ${isCollapsed && !isMobile ? 'justify-center' : 'px-4'}`}>
+         <img
+            className={`h-9 w-auto ${isCollapsed && !isMobile ? 'h-8' : 'h-9'}`} // Slightly smaller when collapsed
+            src="/roseyco_logo.svg" // *** YOUR LOGO PATH ***
+            alt="Company Logo"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; console.error("Logo load error"); }}
+         />
       </div>
+
+      {/* Navigation */}
+      <nav className="mt-4 flex flex-1 flex-col">
+        <ul role="list" className="flex flex-1 flex-col gap-y-7">
+          {/* Essentials Section */}
+          <li>
+            <SectionTitle title="ESSENTIALS" isCollapsed={isCollapsed && !isMobile} />
+            <NavList items={essentialsNavigation} isCollapsed={isCollapsed && !isMobile} checkCurrent={checkCurrent} />
+          </li>
+
+          {/* Team Space Section - NEW */}
+          <li>
+            <SectionTitle title="TEAM SPACE" isCollapsed={isCollapsed && !isMobile} />
+            <NavList items={teamSpaceNavigation} isCollapsed={isCollapsed && !isMobile} checkCurrent={checkCurrent} />
+          </li>
+
+          {/* Resources Section - NEW */}
+          <li>
+            <SectionTitle title="RESOURCES" isCollapsed={isCollapsed && !isMobile} />
+            <NavList items={resourcesNavigation} isCollapsed={isCollapsed && !isMobile} checkCurrent={checkCurrent} />
+          </li>
+
+          {/* Settings Section */}
+           <li>
+             <SectionTitle title="SETTINGS" isCollapsed={isCollapsed && !isMobile} />
+             <NavList items={settingsNavigation} isCollapsed={isCollapsed && !isMobile} checkCurrent={checkCurrent} />
+           </li>
+
+          {/* Profile Section (at the bottom) */}
+          <li className="mt-auto">
+             <SectionTitle title="PROFILE" isCollapsed={isCollapsed && !isMobile} />
+             {/* Logged-in User Info (Example) */}
+             <div className={classNames(
+                 'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold items-center text-gray-300',
+                 isCollapsed && !isMobile ? 'justify-center' : ''
+             )}>
+                 <UserCircleIcon className="h-6 w-6 shrink-0 text-gray-400" aria-hidden="true" />
+                 {!isCollapsed || isMobile ? (
+                    <span className="truncate">Admin User</span> // Replace with dynamic user name
+                 ) : null}
+             </div>
+             {/* My Account Link */}
+             <NavList items={profileNavigation} isCollapsed={isCollapsed && !isMobile} checkCurrent={checkCurrent} />
+             {/* Logout Button */}
+             <a
+               href="#"
+               onClick={(e) => { e.preventDefault(); handleLogout(); }}
+               title={isCollapsed && !isMobile ? 'Logout' : undefined}
+               className={classNames(
+                 'text-gray-300 hover:bg-red-600 hover:text-white', // Use red hover
+                 'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-medium transition-colors duration-150 ease-in-out items-center',
+                 isCollapsed && !isMobile ? 'justify-center' : ''
+               )}
+             >
+               <ArrowLeftOnRectangleIcon className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-white transition-colors duration-150 ease-in-out" aria-hidden="true" />
+               {!isCollapsed || isMobile ? 'Logout' : ''}
+             </a>
+          </li>
+        </ul>
+      </nav>
+    </>
+  );
+
+  // --- Helper Components ---
+  const SectionTitle = ({ title, isCollapsed }: { title: string; isCollapsed: boolean }) => (
+     !isCollapsed ? (
+        <div className="mb-1 mt-4 px-3 text-xs font-semibold leading-6 text-gray-500">{title}</div> // Adjusted spacing/padding
+     ) : (
+        <div className="h-px w-full bg-gray-700 my-3 mx-auto"></div> // Divider when collapsed
+     )
+  );
+
+  const NavList = ({ items, isCollapsed, checkCurrent }: { items: NavItem[]; isCollapsed: boolean; checkCurrent: (href: string) => boolean }) => (
+     <ul role="list" className="space-y-1">
+       {items.map((item) => {
+          const current = checkCurrent(item.href);
+         return (
+           <li key={item.name}>
+             {/* TODO: Add Tooltip for collapsed state */}
+             <Link // Use Link for client-side routing
+               href={item.href}
+               title={isCollapsed ? item.name : undefined}
+               className={classNames(
+                 current
+                   ? 'bg-red-700 text-white font-semibold' // UPDATED: Red active state
+                   : 'text-gray-300 hover:bg-red-600 hover:text-white', // UPDATED: Red hover state
+                 'group flex items-center gap-x-3 rounded-md px-3 py-2 text-sm leading-6 font-medium transition-colors duration-150 ease-in-out',
+                 isCollapsed ? 'justify-center' : ''
+               )}
+                aria-current={current ? 'page' : undefined}
+             >
+               <NavItemIcon Icon={item.icon} current={current}
+               />
+               {!isCollapsed && <span className="truncate">{item.name}</span>}
+             </Link>
+           </li>
+         );
+       })}
+     </ul>
+  );
+
+
+  // --- Main Render ---
+  return (
+    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
+      {/* Mobile sidebar */}
+      <Transition.Root show={sidebarOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-50 lg:hidden" onClose={setSidebarOpen}>
+          <Transition.Child as={Fragment} enter="transition-opacity ease-linear duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="transition-opacity ease-linear duration-300" leaveFrom="opacity-100" leaveTo="opacity-0">
+            <div className="fixed inset-0 bg-gray-900/80" />
+          </Transition.Child>
+          <div className="fixed inset-0 flex">
+            <Transition.Child as={Fragment} enter="transition ease-in-out duration-300 transform" enterFrom="-translate-x-full" enterTo="translate-x-0" leave="transition ease-in-out duration-300 transform" leaveFrom="translate-x-0" leaveTo="-translate-x-full">
+              <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
+                <Transition.Child as={Fragment} enter="ease-in-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in-out duration-300" leaveFrom="opacity-100" leaveTo="opacity-0">
+                  <div className="absolute left-full top-0 flex w-16 justify-center pt-5">
+                    <button type="button" className="-m-2.5 p-2.5" onClick={() => setSidebarOpen(false)}>
+                      <XMarkIcon className="h-6 w-6 text-white" aria-hidden="true" />
+                    </button>
+                  </div>
+                </Transition.Child>
+                <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-black px-4 pb-4 ring-1 ring-white/10"> {/* Adjusted padding */}
+                   <SidebarContent isMobile={true} />
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </Dialog>
+      </Transition.Root>
 
       {/* Static sidebar for desktop */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-        {/* Sidebar component */}
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-black px-6 pb-4">
-          <div className="flex h-16 shrink-0 items-center">
-            {/* Optional Desktop Logo */}
-            {/* <img
-              className="h-8 w-auto"
-              src="https://tailwindui.com/img/logos/mark.svg?color=white" // Example: white logo on black bg
-              alt="Your Company"
-            /> */}
-          </div>
-          <nav className="flex flex-1 flex-col">
-            <ul role="list" className="flex flex-1 flex-col gap-y-7">
-              {/* New Client Button */}
-              <li>
-                <button className="text-white w-full rounded-md bg-red-600 px-3.5 py-2.5 text-sm font-semibold shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600">
-                  <div className="flex items-center justify-center">
-                    <PlusIcon className="h-5 w-5 mr-2" aria-hidden="true" />
-                    New Client
-                  </div>
-                </button>
-              </li>
-              {/* Workspace Section */}
-              <li>
-                <div className="text-xs font-semibold leading-6 text-gray-400">
-                  WORKSPACE
-                </div>
-                <ul role="list" className="-mx-2 mt-2 space-y-1">
-                  {workspaceNavigation.map((item) => (
-                    <li key={item.name}>
-                      <a
-                        href={item.href}
-                        className={classNames(
-                          item.current
-                            ? 'bg-gray-800 text-white' // Active item style
-                            : 'text-gray-400 hover:text-white hover:bg-gray-800', // Default item style
-                          'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
-                        )}
-                      >
-                        <item.icon
-                          className={classNames(
-                            item.current ? 'text-white' : 'text-gray-400 group-hover:text-white', // Icon color matches text/hover
-                            'h-6 w-6 shrink-0'
-                          )}
-                          aria-hidden="true"
-                        />
-                        {item.name}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-              {/* Quick Access Section - NEW */}
-              <li>
-                <div className="text-xs font-semibold leading-6 text-gray-400">
-                  QUICK ACCESS
-                </div>
-                <ul role="list" className="-mx-2 mt-2 space-y-1">
-                  {quickAccessNavigation.map((item) => (
-                    <li key={item.name}>
-                      <a
-                        href={item.href}
-                        className={classNames(
-                          item.current
-                            ? 'bg-gray-800 text-white' // Active item style (if any)
-                            : 'text-gray-400 hover:text-white hover:bg-gray-800', // Default item style
-                          'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
-                        )}
-                      >
-                        <item.icon
-                          className={classNames(
-                            item.current ? 'text-white' : 'text-gray-400 group-hover:text-white', // Icon color matches text/hover
-                            'h-6 w-6 shrink-0'
-                          )}
-                          aria-hidden="true"
-                        />
-                        {item.name}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-
-              {/* Optional: Add settings or profile link at the bottom */}
-              {/* <li className="mt-auto">
-                 <a
-                   href="#"
-                   className="group -mx-2 flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-400 hover:bg-gray-800 hover:text-white"
-                 >
-                   <Cog6ToothIcon className="h-6 w-6 shrink-0" aria-hidden="true" />
-                   Settings
-                 </a>
-               </li> */}
-            </ul>
-          </nav>
+      <div className={classNames(
+         "hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:flex-col transition-all duration-300 ease-in-out",
+         isCollapsed ? "lg:w-20" : "lg:w-72" // Keep original width or adjust if needed
+      )}>
+        <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-black px-3 pb-4 relative custom-scrollbar"> {/* Adjusted padding */}
+          <SidebarContent isMobile={false}/>
         </div>
       </div>
 
-      {/* Main content area needs a left margin to offset the fixed sidebar */}
-      <main className="flex-1 p-4 lg:pl-72 lg:p-6"> {/* Adjusted lg:pl-72 */}
-        {/* Button to toggle mobile sidebar (place it in your header/main content) */}
-         <button
-           type="button"
-           className="inline-flex items-center p-2 mt-2 ml-3 text-sm text-gray-500 rounded-lg lg:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600"
-           onClick={() => setSidebarOpen(true)}
-         >
-           <span className="sr-only">Open sidebar</span>
-           {/* You might want a different icon like Bars3Icon */}
-           <svg className="w-6 h-6" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path clipRule="evenodd" fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"></path></svg>
-        </button>
+      {/* Main content area */}
+      <main className={classNames(
+         "flex-1 transition-all duration-300 ease-in-out",
+         isCollapsed ? "lg:pl-20" : "lg:pl-72" // Adjust based on sidebar width
+      )}>
+         {/* Sticky Header */}
+         <div className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 dark:bg-gray-800 dark:border-gray-700">
+            <button type="button" className="-m-2.5 p-2.5 text-gray-700 lg:hidden dark:text-gray-300" onClick={() => setSidebarOpen(true)}>
+               <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+            </button>
+            <div className="h-6 w-px bg-gray-900/10 lg:hidden dark:bg-white/5" aria-hidden="true" />
+            <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+               {/* Header Content Placeholder */}
+            </div>
+         </div>
 
-        {/* Your page content goes here */}
-        {children}
+         {/* Page Content */}
+         <div className="p-4 sm:p-6 lg:p-8">
+           {children}
+         </div>
       </main>
     </div>
-  )
+  );
 }
